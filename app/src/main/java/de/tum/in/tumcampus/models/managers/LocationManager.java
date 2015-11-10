@@ -9,10 +9,6 @@ import android.location.Location;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
-import android.util.Pair;
-
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -240,13 +236,7 @@ public class LocationManager {
      * Checks that Google Play services are available
      */
     private boolean servicesConnected() {
-        int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(mContext);
-        if (ConnectionResult.SUCCESS == resultCode) {
-            return true;
-        } else {
-            Utils.log("Google Play services is NOT available.");
-            return false;
-        }
+        return false;
     }
 
     /**

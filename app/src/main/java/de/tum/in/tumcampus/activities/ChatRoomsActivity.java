@@ -15,12 +15,8 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.EditText;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
-import com.google.android.gms.gcm.GoogleCloudMessaging;
 import com.google.gson.Gson;
 
-import java.io.IOException;
 import java.security.PrivateKey;
 import java.util.Date;
 import java.util.List;
@@ -337,23 +333,7 @@ public class ChatRoomsActivity extends ActivityForLoadingInBackground<Void, Curs
      * the Google Play Store or enable it in the device's system settings.
      */
     private boolean checkPlayServices() {
-
-            final int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
-            if (resultCode != ConnectionResult.SUCCESS) {
-                if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
-                    this.runOnUiThread(new Runnable() {
-                        public void run() {
-                            GooglePlayServicesUtil.getErrorDialog(resultCode, ChatRoomsActivity.this, PLAY_SERVICES_RESOLUTION_REQUEST).show();
-                        }
-                    });
-                } else {
-                    Utils.log("This device is not supported by Google Play services.");
-                    finish();
-                }
-                return false;
-            }
             return true;
-
     }
 
     /**
@@ -393,37 +373,7 @@ public class ChatRoomsActivity extends ActivityForLoadingInBackground<Void, Curs
      * shared preferences.
      */
     private void registerInBackground() {
-        new AsyncTask<Void, Void, String>() {
-            @Override
-            protected String doInBackground(Void... params) {
-                try {
-                    //Get the services and register a new id
-                    GoogleCloudMessaging gcm = GoogleCloudMessaging.getInstance(ChatRoomsActivity.this);
-                    String regId = gcm.register(SENDER_ID);
-
-                    //Reset the lock in case we are updating and maybe failed
-                    Utils.setInternalSetting(ChatRoomsActivity.this, Const.GCM_REG_ID_SENT_TO_SERVER, false);
-                    Utils.setInternalSetting(ChatRoomsActivity.this, Const.GCM_REG_ID_LAST_TRANSMISSION, (new Date()).getTime());
-
-                    // Let the server know of our new registration id
-                    ChatRoomsActivity.this.sendRegistrationIdToBackend(regId);
-
-                    // Persist the regID - no need to register again.
-                    ChatRoomsActivity.this.storeRegistrationId(regId);
-
-                    return "GCM registration successful";
-                } catch (IOException ex) {
-
-                    //Return the error message
-                    return "Error :" + ex.getMessage();
-                }
-            }
-
-            @Override
-            protected void onPostExecute(String msg) {
-                Utils.log(msg);
-            }
-        }.execute();
+        // NOP
     }
 
     /**
