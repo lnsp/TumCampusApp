@@ -23,6 +23,7 @@ import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,8 @@ import de.tum.in.tumcampusapp.services.FavoriteDishReceiver;
  * Fragment for each cafeteria-page.
  */
 public class CafeteriaDetailsSectionFragment extends Fragment {
+    private static final String dishTagSeparator = "__";
+    private static final String alarmTimeFormat = "dd-MM-yyyy", dishPriceFormat = "%s €";
     private static final Pattern SPLIT_ANNOTATIONS_PATTERN = Pattern.compile("\\(([A-Za-z0-9]+),");
     private static final Pattern NUMERICAL_ANNOTATIONS_PATTERN = Pattern.compile("\\(([1-9]|10|11)\\)");
 
@@ -55,7 +58,7 @@ public class CafeteriaDetailsSectionFragment extends Fragment {
      * @param big         True to show big lines
      */
     @SuppressLint("ShowToast")
-    public static List<View> showMenu(LinearLayout rootView, int cafeteriaId, String dateStr, boolean big) {
+    public static List<View> showMenu(LinearLayout rootView, final int cafeteriaId, String dateStr, boolean big) {
         // initialize a few often used things
         final Context context = rootView.getContext();
         final Map<String, String> rolePrices = CafeteriaPrices.getRolePrices(context);
@@ -67,15 +70,15 @@ public class CafeteriaDetailsSectionFragment extends Fragment {
         // Get menu items
         Cursor cursorCafeteriaMenu = new CafeteriaMenuManager(context).getTypeNameFromDbCard(cafeteriaId, dateStr);
 
-        TextView textview;
+        TextView headerView;
         if (!big) {
             // Show opening hours
             OpenHoursManager lm = new OpenHoursManager(context);
-            textview = new TextView(context);
-            textview.setText(lm.getHoursByIdAsString(context, cafeteriaId, Utils.getDate(dateStr)));
-            textview.setTextColor(ContextCompat.getColor(context, R.color.sections_green));
-            rootView.addView(textview);
-            addedViews.add(textview);
+            headerView = new TextView(context);
+            headerView.setText(lm.getHoursByIdAsString(context, cafeteriaId, Utils.getDate(dateStr)));
+            headerView.setTextColor(ContextCompat.getColor(context, R.color.sections_green));
+            rootView.addView(headerView);
+            addedViews.add(headerView);
         }
 
         // Show cafeteria menu
@@ -97,28 +100,27 @@ public class CafeteriaDetailsSectionFragment extends Fragment {
                 if (!typeShort.equals(curShort)) {
                     curShort = typeShort;
                     View view = inflater.inflate(big ? R.layout.list_header_big : R.layout.card_list_header, rootView, false);
-                    textview = (TextView) view.findViewById(R.id.list_header);
-                    textview.setText(typeLong.replaceAll("[0-9]", "").trim());
+                    headerView = (TextView) view.findViewById(R.id.list_header);
+                    headerView.setText(typeLong.replaceAll("[0-9]", "").trim());
                     rootView.addView(view);
                     addedViews.add(view);
                 }
 
                 // Show menu item
-
                 final SpannableString text = menuToSpan(context, big ? menu : prepare(menu));
                 if (rolePrices.containsKey(typeLong)) {
                     // If price is available
                     View view = inflater.inflate(big ? R.layout.price_line_big : R.layout.card_price_line, rootView, false);
-                    textview = (TextView) view.findViewById(R.id.line_name);
+                    headerView = (TextView) view.findViewById(R.id.line_name);
                     TextView priceView = (TextView) view.findViewById(R.id.line_price);
                     final ToggleButton favDish = (ToggleButton) view.findViewById(R.id.favortieDish);
-                    favDish.setTag(menu + "__" + cafeteriaId);
+                    favDish.setTag(menu + dishTagSeparator + cafeteriaId);
                     /**
                      * saved dish id in the favoriteDishButton tag.
                      * onButton checked getTag->DishID and mark it as favorite locally (favorite=1)
                      */
-                    textview.setText(text);
-                    priceView.setText(String.format("%s €", rolePrices.get(typeLong)));
+                    headerView.setText(text);
+                    priceView.setText(String.format(dishPriceFormat, rolePrices.get(typeLong)));
                     rootView.addView(view);
                     addedViews.add(view);
 
@@ -132,28 +134,21 @@ public class CafeteriaDetailsSectionFragment extends Fragment {
                             favDish.setChecked(false);
                         }
                     }
-
-                    View.OnClickListener favoriteToggleButtonListener = new View.OnClickListener() {
+                    favDish.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View view) {
-                            String id = view.getTag().toString();
-                            String[] data = id.split("__");
-                            String dishname = data[0];
-                            int mensaId = Integer.parseInt(data[1]);
                             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
                             Intent myIntent = new Intent(context, FavoriteDishReceiver.class);
-
                             if (((ToggleButton) view).isChecked()) {
-                                DateTimeFormatter formatter = DateTimeFormat.forPattern("dd-MM-yyyy");
+                                DateTimeFormatter formatter = DateTimeFormat.forPattern(alarmTimeFormat);
                                 String currentDate = DateTime.now().toString(formatter);
-                                Cursor c = cmm.getFavoriteDishNextDates(mensaId, dishname);
-                                cmm.insertFavoriteDish(mensaId, dishname, currentDate, favDish.getTag().toString());
+                                Cursor c = cmm.getFavoriteDishNextDates(cafeteriaId, menu);
+                                cmm.insertFavoriteDish(cafeteriaId, menu, currentDate, favDish.getTag().toString());
 
                                 if (c.getCount() > 0) {
                                     while (c.moveToNext()) {
-
-                                        cmm.insertFavoriteDish(mensaId, dishname, c.getString(0), favDish.getTag().toString());
-                                        Cursor cur = cmm.getLastInsertedDishId(mensaId, dishname);
+                                        cmm.insertFavoriteDish(cafeteriaId, menu, c.getString(0), favDish.getTag().toString());
+                                        Cursor cur = cmm.getLastInsertedDishId(cafeteriaId, menu);
                                         DateTime dt = formatter.parseDateTime(c.getString(0)).withHourOfDay(9);
                                         long millsToAlarm = dt.getMillis() - DateTime.now().getMillis();
 
@@ -167,7 +162,7 @@ public class CafeteriaDetailsSectionFragment extends Fragment {
                                     }
                                 }
                             } else {
-                                Cursor curs = cmm.getFavoriteDishAllIds(mensaId, dishname);
+                                Cursor curs = cmm.getFavoriteDishAllIds(cafeteriaId, menu);
                                 while (curs.moveToNext()) {
                                     int alertId = curs.getInt(0);
                                     PendingIntent pendingIntent = PendingIntent.getBroadcast(context, alertId, myIntent, PendingIntent.FLAG_CANCEL_CURRENT);
@@ -175,20 +170,18 @@ public class CafeteriaDetailsSectionFragment extends Fragment {
                                     alarmManager.cancel(pendingIntent);
                                 }
 
-                                cmm.deleteFavoriteDish(mensaId, dishname);
+                                cmm.deleteFavoriteDish(cafeteriaId, menu);
                             }
                         }
-                    };
-
-                    favDish.setOnClickListener(favoriteToggleButtonListener);
+                    });
 
                 } else {
                     // Without price
-                    textview = new TextView(context);
-                    textview.setText(text);
-                    textview.setPadding(padding, padding, padding, padding);
-                    rootView.addView(textview);
-                    addedViews.add(textview);
+                    headerView = new TextView(context);
+                    headerView.setText(text);
+                    headerView.setPadding(padding, padding, padding, padding);
+                    rootView.addView(headerView);
+                    addedViews.add(headerView);
                 }
             } while (cursorCafeteriaMenu.moveToNext());
         }
